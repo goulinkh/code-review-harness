@@ -11,6 +11,7 @@ import { defaultReviewerPrompt } from "./defaultReviewerPrompt.js";
 import type { CreateReviewSessionOptions, ReviewSessionHandle } from "./types.js";
 
 const TOOL_CALL_TIMEOUT_MS = 10_000;
+const TIMEOUT_EXEMPT_TOOLS = new Set(["delegate_review", "submit_review"]);
 
 function withTimeout<T extends ToolDefinition>(tool: T, ms: number): T {
   if (typeof tool?.execute !== "function") return tool;
@@ -59,7 +60,7 @@ export async function createReviewSession(options: CreateReviewSessionOptions): 
     ...createPrTools(workspace),
     createDelegateReviewTool({ workspace, provider: options.provider, model: options.model, systemPrompt: options.subAgentSystemPrompt, onChildEvent: options.onChildEvent }),
     createSubmitReviewTool(options.sink, { provider: options.provider, workspace }),
-  ].map((tool) => withTimeout(tool, TOOL_CALL_TIMEOUT_MS));
+  ].map((tool) => TIMEOUT_EXEMPT_TOOLS.has(tool.name) ? tool : withTimeout(tool, TOOL_CALL_TIMEOUT_MS));
   const { session } = await createAgentSession({
     cwd: workspace,
     model: options.model,
