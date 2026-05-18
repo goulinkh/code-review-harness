@@ -15,8 +15,8 @@
     "url": "https://github.com/goulinkh/code-review-harness/issues"
   },
   "bin": {
-    "crh": "./dist/index.js",
-    "code-review-harness": "./dist/index.js"
+    "crh": "dist/index.js",
+    "code-review-harness": "dist/index.js"
   },
   "files": [
     "dist",
@@ -36,8 +36,7 @@
     "merge-proposal"
   ],
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "scripts": {
     "build": "node build.mjs",
