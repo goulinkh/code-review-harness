@@ -13,6 +13,25 @@ import type { CreateReviewSessionOptions, ReviewSessionHandle } from "./types.js
 
 const TOOL_CALL_TIMEOUT_MS = 10_000;
 const TIMEOUT_EXEMPT_TOOLS = new Set(["delegate_review", "submit_review"]);
+const MAX_TOOL_RESPONSE_CHARS = 80_000;
+
+function withResponseSizeLimit<T extends ToolDefinition>(tool: T, maxChars: number): T {
+  if (typeof tool?.execute !== "function") return tool;
+  const original = tool.execute.bind(tool);
+  return {
+    ...tool,
+    async execute(toolCallId, params, signal, onUpdate, ctx) {
+      const result = await original(toolCallId, params, signal, onUpdate, ctx);
+      if (!result?.content) return result;
+      const content = result.content.map((block: { type: string; text?: string }) => {
+        if (block.type !== "text" || !block.text || block.text.length <= maxChars) return block;
+        const omitted = block.text.length - maxChars;
+        return { ...block, text: `${block.text.slice(0, maxChars)}\n[TRUNCATED: ${omitted} chars omitted — paginate with start/end params or narrow the request]` };
+      });
+      return { ...result, content };
+    },
+  } as T;
+}
 
 function withTimeout<T extends ToolDefinition>(tool: T, ms: number): T {
   if (typeof tool?.execute !== "function") return tool;
@@ -56,13 +75,16 @@ export async function createReviewSession(options: CreateReviewSessionOptions): 
   const resourceLoader = createResourceLoader(workspace, settingsManager, options.systemPrompt ?? defaultReviewerPrompt);
   await resourceLoader.reload();
 
+  const SIZE_EXEMPT_TOOLS = new Set(["delegate_review", "submit_review"]);
   const customTools = [
     ...createRepoFileOps(options.provider),
     ...createPrTools(workspace),
     ...createUtilTools(),
     createDelegateReviewTool({ workspace, provider: options.provider, model: options.model, systemPrompt: options.subAgentSystemPrompt, onChildEvent: options.onChildEvent }),
     createSubmitReviewTool(options.sink, { provider: options.provider, workspace }),
-  ].map((tool) => TIMEOUT_EXEMPT_TOOLS.has(tool.name) ? tool : withTimeout(tool, TOOL_CALL_TIMEOUT_MS));
+  ]
+    .map((tool) => TIMEOUT_EXEMPT_TOOLS.has(tool.name) ? tool : withTimeout(tool, TOOL_CALL_TIMEOUT_MS))
+    .map((tool) => SIZE_EXEMPT_TOOLS.has(tool.name) ? tool : withResponseSizeLimit(tool, MAX_TOOL_RESPONSE_CHARS));
   const { session } = await createAgentSession({
     cwd: workspace,
     model: options.model,

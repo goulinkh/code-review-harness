@@ -4,6 +4,8 @@ import { Type } from "@sinclair/typebox";
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { createSafeDiffPath } from "./diff.js";
 
+const DIFF_NUMBERED_DEFAULT_LINES = 500;
+
 interface FileMeta {
   path: string;
   additions?: number;
@@ -30,13 +32,21 @@ export function createPrTools(workspace: string): ToolDefinition[] {
         patch: await fs.readFile(join(root, "diff", "files", safePath, "patch"), "utf8"),
       };
     }),
-    defineJsonTool("diff_numbered", "Read numbered diff range", Type.Object({ start: Type.Optional(Type.Number()), end: Type.Optional(Type.Number()), previewDiffId: Type.Optional(Type.Number()) }), async (params) => {
-      const root = await resolvePreviewDiffRoot(workspace, params.previewDiffId);
-      const lines = (await fs.readFile(join(root, "diff", "numbered.diff"), "utf8")).split("\n");
-      const start = Math.max(1, params.start ?? 1);
-      const end = Math.min(lines.length, params.end ?? lines.length);
-      return lines.slice(start - 1, end).join("\n");
-    }),
+    defineJsonTool(
+      "diff_numbered",
+      `Read numbered diff range. Default window: ${DIFF_NUMBERED_DEFAULT_LINES} lines from start. Pass start+end to paginate. Response includes totalLines so you can detect truncation.`,
+      Type.Object({ start: Type.Optional(Type.Number()), end: Type.Optional(Type.Number()), previewDiffId: Type.Optional(Type.Number()) }),
+      async (params) => {
+        const root = await resolvePreviewDiffRoot(workspace, params.previewDiffId);
+        const lines = (await fs.readFile(join(root, "diff", "numbered.diff"), "utf8")).split("\n");
+        const totalLines = lines.length;
+        const start = Math.max(1, params.start ?? 1);
+        const end = Math.min(totalLines, params.end ?? start + DIFF_NUMBERED_DEFAULT_LINES - 1);
+        const slice = lines.slice(start - 1, end).join("\n");
+        const truncated = end < totalLines;
+        return { totalLines, start, end, truncated, content: slice };
+      },
+    ),
     defineJsonTool("comments_general", "Read general comments for preview diff", Type.Object({ previewDiffId: Type.Optional(Type.Number()) }), async (params) => {
       const root = await resolvePreviewDiffRoot(workspace, params.previewDiffId);
       return readJson(join(root, "comments", "general.json"));

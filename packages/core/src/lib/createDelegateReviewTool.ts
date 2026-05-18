@@ -18,6 +18,26 @@ import type { DelegateChildContext, ReviewProvider } from "./types.js";
 
 export type { DelegateChildContext };
 
+const MAX_CHILD_TOOL_RESPONSE_CHARS = 80_000;
+
+function withResponseSizeLimit<T extends ToolDefinition>(tool: T, maxChars: number): T {
+  if (typeof tool?.execute !== "function") return tool;
+  const original = tool.execute.bind(tool);
+  return {
+    ...tool,
+    async execute(toolCallId, params, signal, onUpdate, ctx) {
+      const result = await original(toolCallId, params, signal, onUpdate, ctx);
+      if (!result?.content) return result;
+      const content = result.content.map((block: { type: string; text?: string }) => {
+        if (block.type !== "text" || !block.text || block.text.length <= maxChars) return block;
+        const omitted = block.text.length - maxChars;
+        return { ...block, text: `${block.text.slice(0, maxChars)}\n[TRUNCATED: ${omitted} chars omitted — paginate with start/end params or narrow the request]` };
+      });
+      return { ...result, content };
+    },
+  } as T;
+}
+
 export const FindingsSchema = Type.Object({
   findings: Type.Array(
     Type.Object({
@@ -111,7 +131,8 @@ async function runChildReview(options: DelegateReviewToolOptions, params: { scop
   const resourceLoader = createChildResourceLoader(options.workspace, settingsManager, options.systemPrompt ?? defaultSubReviewerPrompt);
   await resourceLoader.reload();
 
-  const customTools = [...createRepoFileOps(options.provider), ...createPrTools(options.workspace), ...createUtilTools(), reportTool];
+  const customTools = [...createRepoFileOps(options.provider), ...createPrTools(options.workspace), ...createUtilTools(), reportTool]
+    .map((tool) => tool.name === "report_findings" ? tool : withResponseSizeLimit(tool, MAX_CHILD_TOOL_RESPONSE_CHARS));
   const { session } = await createAgentSession({
     cwd: options.workspace,
     model: options.model,
