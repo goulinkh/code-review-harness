@@ -1,0 +1,20 @@
+{
+  "name": "@code-review-harness/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": { "crh": "./dist/index.js" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@code-review-harness/core": "workspace:*",
+    "@code-review-harness/launchpad-provider": "workspace:*",
+    "@code-review-harness/launchpad-sink": "workspace:*",
+    "@code-review-harness/stdout-sink": "workspace:*",
+    "@earendil-works/pi-ai": "^0.75.1",
+    "commander": "^12.1.0"
+  }
+}

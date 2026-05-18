@@ -1,0 +1,21 @@
+{
+  "name": "@code-review-harness/launchpad-sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "oauth-1.0a": "^2.2.6",
+    "typebox": "^1.1.24",
+    "undici": "^8.3.0"
+  },
+  "devDependencies": {
+    "@types/oauth": "^0.9.6"
+  }
+}
