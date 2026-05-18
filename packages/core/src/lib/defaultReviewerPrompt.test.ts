@@ -8,7 +8,8 @@ describe("defaultReviewerPrompt", () => {
     expect(defaultReviewerPrompt).toEqual(expect.stringContaining("diff_list_files"));
     expect(defaultReviewerPrompt).toEqual(expect.stringContaining("diff_numbered"));
     expect(defaultReviewerPrompt).toEqual(expect.stringContaining("submit_review"));
-    expect(defaultReviewerPrompt).toEqual(expect.stringContaining("diff_plan_batches"));
+    expect(defaultReviewerPrompt).toEqual(expect.stringContaining("delegate_review"));
+    expect(defaultReviewerPrompt).not.toMatch(/\bdiff_plan_batches\b/);
     expect(defaultReviewerPrompt).not.toMatch(/\bread\s+mp_metadata\b/i);
   });
 });
