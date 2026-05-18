@@ -111,12 +111,8 @@ export function formatSessionEvent(event: AgentSessionEvent, scope?: EventScope)
     case "turn_end":
       return undefined;
 
-    case "message_start": {
-      const role = (event as { message?: { role?: string } }).message?.role;
-      if (role !== "assistant") return undefined;
-      const label = scope?.kind === "sub" ? "sub-agent" : "agent";
-      return `${p}${tag(DIM, label)} responding…`;
-    }
+    case "message_start":
+      return undefined;
 
     case "message_update":
       return undefined;
