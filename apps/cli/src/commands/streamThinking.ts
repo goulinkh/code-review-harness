@@ -46,10 +46,10 @@ export function createThinkingStreamer(write: (chunk: string) => void): (event: 
     }
     if (sub.type === "thinking_end" && state.active) {
       const prefix = prefixOf(scope);
-      const rendered = renderMarkdown(state.buffer).trimEnd();
+      const rendered = renderMarkdown(state.buffer).replace(/\n+$/, "");
       const bordered = rendered
         .split("\n")
-        .map((line) => `${DIM}${MAGENTA}│${RESET} ${DIM}${line}${RESET}`)
+        .map((line) => `${DIM}${MAGENTA}│${RESET} ${line}`)
         .join("\n");
       write(`${prefix}${MAGENTA}${BOLD}[thinking]${RESET}\n${bordered}\n`);
       state.buffer = "";

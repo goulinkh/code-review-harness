@@ -44,6 +44,21 @@ function truncate(value: unknown, maxLen = 120): string {
   return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
 }
 
+const toolStartTimes = new Map<string, number>();
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const m = Math.floor(ms / 60_000);
+  const s = Math.floor((ms % 60_000) / 1000);
+  return `${m}m${s.toString().padStart(2, "0")}s`;
+}
+
+function createDurationKey(event: { toolCallId?: string; toolName?: string }, scope?: EventScope): string {
+  const slot = scope?.kind === "sub" ? scope.slot : "main";
+  return `${slot}:${event.toolCallId ?? event.toolName ?? "?"}`;
+}
+
 interface AssistantBlocks {
   thinking: string[];
   text: string[];
@@ -116,6 +131,7 @@ export function formatSessionEvent(event: AgentSessionEvent, scope?: EventScope)
 
     case "tool_execution_start": {
       const args = truncate(event.args);
+      toolStartTimes.set(createDurationKey(event, scope), Date.now());
       return `${p}${tag(YELLOW, "tool")} ${BOLD}${event.toolName}${RESET} ${DIM}${args}${RESET}`;
     }
 
@@ -123,13 +139,20 @@ export function formatSessionEvent(event: AgentSessionEvent, scope?: EventScope)
       return undefined;
 
     case "tool_execution_end": {
+      const key = createDurationKey(event, scope);
+      const startedAt = toolStartTimes.get(key);
+      toolStartTimes.delete(key);
+      const dur = startedAt !== undefined ? ` ${DIM}(${formatDuration(Date.now() - startedAt)})${RESET}` : "";
       if (event.isError) {
-        return `${p}${tag(RED, "tool")} ${event.toolName} failed: ${truncate(event.result)}`;
+        return `${p}${tag(RED, "tool")} ${event.toolName} failed${dur}: ${truncate(event.result)}`;
       }
       if (event.toolName === "delegate_review" && (!scope || scope.kind === "main")) {
         const count = countFindings(event.result);
         const tail = count !== undefined ? `${count} finding${count === 1 ? "" : "s"}` : "done";
-        return `${tag(GREEN, "agent")} delegate_review complete (${tail})`;
+        return `${tag(GREEN, "agent")} delegate_review complete (${tail})${dur}`;
+      }
+      if (startedAt !== undefined) {
+        return `${p}${tag(GREEN, "tool")} ${BOLD}${event.toolName}${RESET}${dur}`;
       }
       return undefined;
     }

@@ -6,6 +6,7 @@ import { createLaunchpadSink } from "@code-review-harness/launchpad-sink";
 import { createStdoutSink } from "@code-review-harness/stdout-sink";
 import { formatSessionEvent } from "./formatSessionEvent.js";
 import { createThinkingStreamer } from "./streamThinking.js";
+import { createStatusPanel } from "./createStatusPanel.js";
 
 const BOLD = "\x1b[1m";
 const RESET = "\x1b[0m";
@@ -58,7 +59,15 @@ async function runReviewCommand(options: ReviewCommandOptions): Promise<void> {
   const sink = options.sink === "launchpad" ? createLaunchpadSink({ url: options.pr }) : createStdoutSink();
 
   const streamThinking = createThinkingStreamer((chunk) => process.stderr.write(chunk));
+  const panel = createStatusPanel(process.stderr);
+  const cleanup = (): void => panel.dispose();
+  process.on("exit", cleanup);
+  process.on("SIGINT", () => {
+    cleanup();
+    process.exit(130);
+  });
 
+  panel.setPhase("Preparing workspace");
   logProgress("Preparing workspace...");
   const { session } = await createReviewSession({
     provider,
@@ -70,6 +79,7 @@ async function runReviewCommand(options: ReviewCommandOptions): Promise<void> {
         log(`${DIM}[debug sub-agent ${ctx.slot}] ${JSON.stringify(event)}${RESET}`);
       }
       const scope = { kind: "sub" as const, slot: ctx.slot, scope: ctx.scope };
+      panel.handle(event, ctx.slot, ctx.scope);
       if (streamThinking(event, scope)) return;
       const line = formatSessionEvent(event, scope);
       if (line !== undefined) {
@@ -78,11 +88,13 @@ async function runReviewCommand(options: ReviewCommandOptions): Promise<void> {
     },
   });
   logProgress("Workspace ready.\n");
+  panel.setPhase("Reviewing");
 
   session.subscribe((event) => {
     if (options.debug) {
       log(`${DIM}[debug] ${JSON.stringify(event)}${RESET}`);
     }
+    panel.handle(event);
     if (streamThinking(event, { kind: "main" })) return;
     const line = formatSessionEvent(event, { kind: "main" });
     if (line !== undefined) {
@@ -91,8 +103,13 @@ async function runReviewCommand(options: ReviewCommandOptions): Promise<void> {
   });
 
   log(`${CYAN}Starting review...${RESET}\n`);
-  await session.prompt("Review merge proposal. Submit final review with submit_review.");
-  log(`\n${BOLD}Done.${RESET}`);
+  try {
+    await session.prompt("Review merge proposal. Submit final review with submit_review.");
+    log(`\n${BOLD}Done.${RESET}`);
+  } finally {
+    panel.dispose();
+    process.off("exit", cleanup);
+  }
 }
 
 function parseModel(model: string, baseUrl?: string): Model<any> | undefined {
