@@ -51,6 +51,26 @@ export function createPrTools(workspace: string): ToolDefinition[] {
       return Object.fromEntries(await Promise.all(files.sort().map(async (file) => [file.replace(/\.json$/, ""), await readJson(join(inlineRoot, file))])));
     }),
     defineJsonTool("agent_files_list", "List materialized agent instruction files", Type.Object({}), async () => listFiles(join(workspace, "agent"))),
+    defineJsonTool(
+      "mark_file_reviewed",
+      "Record a changed file as reviewed. Call once per file after inspecting it. Drives the review progress percentage (reviewed / total changed files). `path` must match a path from diff_list_files.",
+      Type.Object({ path: Type.String() }),
+      async (params) => {
+        const reviewedPath = join(workspace, "reviewed.json");
+        let current: string[] = [];
+        try {
+          const raw = await fs.readFile(reviewedPath, "utf8");
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) current = parsed.filter((entry): entry is string => typeof entry === "string");
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+        }
+        const alreadyReviewed = current.includes(params.path);
+        if (!alreadyReviewed) current.push(params.path);
+        await fs.writeFile(reviewedPath, JSON.stringify(current));
+        return { path: params.path, reviewedCount: current.length, alreadyReviewed };
+      },
+    ),
   ];
 }
 

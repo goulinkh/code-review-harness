@@ -42,6 +42,16 @@ describe("createPrTools", () => {
     await expect(callTool(tools, "comments_inline", { line: 1 })).resolves.toMatchObject({ details: ["i"] });
     await expect(callTool(tools, "comments_inline")).resolves.toMatchObject({ details: { "1": ["i"] } });
     await expect(callTool(tools, "agent_files_list")).resolves.toMatchObject({ details: ["AGENTS.md", "rules/rule.md"] });
+
+    await expect(callTool(tools, "mark_file_reviewed", { path: "src/a.ts" })).resolves.toMatchObject({
+      details: { path: "src/a.ts", reviewedCount: 1, alreadyReviewed: false },
+    });
+    await expect(callTool(tools, "mark_file_reviewed", { path: "src/a.ts" })).resolves.toMatchObject({
+      details: { path: "src/a.ts", reviewedCount: 1, alreadyReviewed: true },
+    });
+    await expect(callTool(tools, "mark_file_reviewed", { path: "src/b.ts" })).resolves.toMatchObject({
+      details: { path: "src/b.ts", reviewedCount: 2, alreadyReviewed: false },
+    });
   });
 
   it("does not expose a deterministic batch planner — slicing is the orchestrator's job", () => {

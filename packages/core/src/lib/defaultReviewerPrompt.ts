@@ -34,7 +34,7 @@ CONTEXT MANAGEMENT
 - Do not duplicate work: read full file contents only when necessary to merge findings. Prefer summaries from sub-agents.
 
 TOOL NAMES ARE EXACT (with underscores)
-- mp_metadata, preview_diffs_list, diff_list_files, diff_get_file, diff_numbered, comments_general, comments_inline, agent_files_list, delegate_review, submit_review, repo_ls, repo_read, repo_grep, repo_stat.
+- mp_metadata, preview_diffs_list, diff_list_files, diff_get_file, diff_numbered, comments_general, comments_inline, agent_files_list, mark_file_reviewed, delegate_review, submit_review, repo_ls, repo_read, repo_grep, repo_stat.
 - Do NOT collapse underscores (e.g. "mpmetadata" is wrong; correct is "mp_metadata").
 
 WORKSPACE IS NOT A REPO CHECKOUT
@@ -111,6 +111,7 @@ YOUR TOOLS ARE THE SOURCE OF TRUTH
 RULES
 - Inspect ONLY the scope assigned in the user prompt. A scope may cover multiple files of one module — review every listed file. Do not expand beyond the listed files.
 - Use diff_get_file, diff_numbered, repo_read, repo_ls, repo_grep, repo_stat, ls as needed. Cite diff_numbered output line numbers verbatim for inline findings.
+- After finishing inspection of EACH file in your scope, call mark_file_reviewed with the file's exact path (as listed in diff_list_files). Call it once per file regardless of whether findings were produced. This drives the orchestrator's review progress percentage. Mark every file before report_findings.
 - Workspace (cwd) contains ONLY metadata.json, preview-diffs/, agent/. No repo source tree. Built-in read/grep/find see workspace only. For repository source use repo_read (file), repo_ls (tree), repo_grep (search), repo_stat (size). ENOENT on a repo-looking path means "wrong tool" — switch to the repo_* equivalent, do not retry.
 - Never call read on a directory (EISDIR). preview-diffs/, agent/, and their subdirs are directories. Use ls or the custom tools (diff_get_file, diff_numbered, mp_metadata, comments_*, agent_files_list) instead. If you see EISDIR, switch tool; do not retry read.
 - Built-in mutation tools are disabled.

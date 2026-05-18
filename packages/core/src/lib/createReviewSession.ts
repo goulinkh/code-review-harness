@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readdir, readlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createAgentSession, DefaultResourceLoader, SessionManager, SettingsManager, type ResourceLoader, type ToolDefinition } from "@earendil-works/pi-coding-agent";
@@ -70,7 +70,32 @@ export async function createReviewSession(options: CreateReviewSessionOptions): 
     settingsManager,
   });
 
-  return { session, workspace, gitdir };
+  const changedFilesCount = await countChangedFiles(workspace);
+
+  return { session, workspace, gitdir, changedFilesCount };
+}
+
+async function countChangedFiles(workspace: string): Promise<number> {
+  try {
+    const target = await readlink(join(workspace, "preview-diffs", "latest"));
+    const filesRoot = join(workspace, "preview-diffs", target, "diff", "files");
+    return await countMetaFiles(filesRoot);
+  } catch {
+    return 0;
+  }
+}
+
+async function countMetaFiles(dir: string): Promise<number> {
+  let count = 0;
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      count += await countMetaFiles(join(dir, entry.name));
+    } else if (entry.name === "meta.json") {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 function createResourceLoader(workspace: string, settingsManager: SettingsManager, systemPrompt: string): ResourceLoader {
