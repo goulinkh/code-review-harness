@@ -43,3 +43,7 @@ Every repository must have a `.gitignore` that prevents build artifacts, depende
 Release tags must follow semantic versioning prefixed with `v` (e.g. `v1.2.3`). Tags must be annotated (not lightweight) so they carry metadata for tooling. Pre-release versions use a hyphenated identifier after the patch number. Automated tooling (Lerna, changesets, etc.) should derive version bumps from conventional commit types: `feat` → minor, `fix` → patch, `BREAKING CHANGE` → major.
 
 ---
+
+## cs.git.commit.context
+
+In case of coding harness usage, the harness should include the relative information, considerations, decisions, and scope of spec used to work on the commit. 

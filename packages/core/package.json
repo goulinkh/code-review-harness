@@ -4,7 +4,12 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -13,8 +18,8 @@
   "dependencies": {
     "@earendil-works/pi-ai": "^0.75.1",
     "@earendil-works/pi-coding-agent": "^0.75.1",
-    "git-remote-ops": "^0.2.0",
-    "parse-diff": "^0.11.1",
-    "typebox": "^1.1.24"
+    "@sinclair/typebox": "^0.34.41",
+    "isomorphic-git": "^1.38.1",
+    "parse-diff": "^0.11.1"
   }
 }
