@@ -78,10 +78,15 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
     stream.write(`\x1b8`); // restore
   }
 
+  function reviewedCount(): number {
+    if (state.changedFiles.size === 0) return state.reviewedFiles.size;
+    return Math.min(state.reviewedFiles.size, state.changedFiles.size);
+  }
+
   function calculatePercent(): number | null {
     if (state.submitted) return 100;
     if (state.changedFiles.size === 0) return null;
-    const pct = (state.reviewedFiles.size / state.changedFiles.size) * 100;
+    const pct = (reviewedCount() / state.changedFiles.size) * 100;
     return Math.max(0, Math.min(100, pct));
   }
 
@@ -102,7 +107,7 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
     const cols = getCols();
     const pct = calculatePercent();
     const running = state.running.size;
-    const filesLabel = state.changedFiles.size > 0 ? `${state.reviewedFiles.size}/${state.changedFiles.size}` : "—";
+    const filesLabel = state.changedFiles.size > 0 ? `${reviewedCount()}/${state.changedFiles.size}` : "—";
 
     const leftPrefix = `${DIM}┌${RESET} `;
     const leftCore =
@@ -172,7 +177,7 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
           changed = true;
         } else if (event.toolName === "mark_file_reviewed") {
           const path = extractPath(event.args);
-          if (path && state.changedFiles.has(path) && !state.reviewedFiles.has(path)) {
+          if (path && !state.reviewedFiles.has(path)) {
             state.reviewedFiles.add(path);
             changed = true;
           }
@@ -199,9 +204,6 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
 
   function setChangedFiles(files: string[]): void {
     state.changedFiles = new Set(files);
-    for (const reviewed of [...state.reviewedFiles]) {
-      if (!state.changedFiles.has(reviewed)) state.reviewedFiles.delete(reviewed);
-    }
     redraw();
   }
 
@@ -226,7 +228,16 @@ function truncate(s: string, max: number): string {
 }
 
 function extractPath(args: unknown): string | undefined {
-  if (!args || typeof args !== "object") return undefined;
-  const value = (args as Record<string, unknown>)["path"];
+  const obj = typeof args === "string" ? safeParse(args) : args;
+  if (!obj || typeof obj !== "object") return undefined;
+  const value = (obj as Record<string, unknown>)["path"];
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function safeParse(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return undefined;
+  }
 }
