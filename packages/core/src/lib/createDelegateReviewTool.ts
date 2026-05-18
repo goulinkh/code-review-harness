@@ -38,6 +38,12 @@ export interface DelegateReviewToolOptions {
   onChildEvent?: (event: AgentSessionEvent, ctx: DelegateChildContext) => void;
 }
 
+const SliceSchema = Type.Object({
+  scope: Type.String({ description: "What the sub-agent must review (e.g. 'file: src/foo.ts', 'module: auth', 'lines 200-450 of numbered.diff')." }),
+  focus: Type.Optional(Type.String({ description: "Optional extra guidance (security, perf, naming, etc.)." })),
+  previewDiffId: Type.Optional(Type.Number()),
+});
+
 /**
  * @note Impure — spawns ephemeral child agent session per delegation call.
  * Each call has its own context window so large reviews can be fanned out by file/module/range.
@@ -48,20 +54,39 @@ export function createDelegateReviewTool(options: DelegateReviewToolOptions): To
     name: "delegate_review",
     label: "delegate_review",
     description:
-      "Delegate review of a scoped slice (file, module, line range, or topic) to a fresh sub-agent. The sub-agent has its own context window and returns structured findings. Use one delegate per file or coherent slice when the diff is large.",
+      "Delegate review of one or many scoped slices to fresh sub-agents that run in parallel. Pass `scopes` (array) to fan out N children in a single call — preferred for multi-file diffs. Pass `scope` for a single slice. Each sub-agent has its own context window and returns structured findings.",
     parameters: Type.Object({
-      scope: Type.String({ description: "What the sub-agent must review (e.g. 'file: src/foo.ts', 'module: auth', 'lines 200-450 of numbered.diff')." }),
-      focus: Type.Optional(Type.String({ description: "Optional extra guidance (security, perf, naming, etc.)." })),
-      previewDiffId: Type.Optional(Type.Number()),
+      scope: Type.Optional(SliceSchema.properties.scope),
+      focus: Type.Optional(SliceSchema.properties.focus),
+      previewDiffId: Type.Optional(SliceSchema.properties.previewDiffId),
+      scopes: Type.Optional(Type.Array(SliceSchema, { description: "Batch of slices to dispatch concurrently. Use this for multi-file diffs instead of issuing many one-scope calls." })),
     }),
-    executionMode: "sequential",
+    executionMode: "parallel",
     async execute(_toolCallId, params) {
-      const p = params as { scope: string; focus?: string; previewDiffId?: number };
-      const slot = ++slotCounter;
-      const result = await runChildReview(options, p, { slot, scope: p.scope, focus: p.focus });
+      const p = params as { scope?: string; focus?: string; previewDiffId?: number; scopes?: Array<{ scope: string; focus?: string; previewDiffId?: number }> };
+      const slices = p.scopes && p.scopes.length > 0
+        ? p.scopes
+        : p.scope
+          ? [{ scope: p.scope, focus: p.focus, previewDiffId: p.previewDiffId }]
+          : [];
+      if (slices.length === 0) {
+        const empty: Findings = { findings: [], summary: "delegate_review called with no scope or scopes" };
+        return { content: [{ type: "text", text: JSON.stringify(empty, null, 2) }], details: empty };
+      }
+      const results = await Promise.all(
+        slices.map(async (s) => {
+          const slot = ++slotCounter;
+          const findings = await runChildReview(options, s, { slot, scope: s.scope, focus: s.focus });
+          return { slot, scope: s.scope, findings };
+        }),
+      );
+      const merged: Findings = {
+        findings: results.flatMap((r) => r.findings.findings),
+        summary: results.map((r) => `[${r.slot}] ${r.scope}: ${r.findings.summary}`).join("\n"),
+      };
       return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        details: result,
+        content: [{ type: "text", text: JSON.stringify(merged, null, 2) }],
+        details: merged,
       };
     },
   });

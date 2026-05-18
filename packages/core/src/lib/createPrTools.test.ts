@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtemp } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { createPrTools } from "./createPrTools.js";
+import { createPrTools, planReviewBatches } from "./createPrTools.js";
 
 async function callTool(tools: ReturnType<typeof createPrTools>, name: string, params: Record<string, unknown> = {}) {
   const tool = tools.find((entry) => entry.name === name)!;
@@ -19,7 +19,7 @@ describe("createPrTools", () => {
     await mkdir(join(workspace, "agent", "rules"), { recursive: true });
     await writeFile(join(workspace, "metadata.json"), '{"title":"T"}');
     await writeFile(join(workspace, "preview-diffs", "index.json"), '[{"id":2}]');
-    await writeFile(join(round, "diff", "files", "src", "a.ts", "meta.json"), '{"path":"src/a.ts"}');
+    await writeFile(join(round, "diff", "files", "src", "a.ts", "meta.json"), '{"path":"src/a.ts","status":"modified","additions":3,"deletions":1,"lineMap":{"1":{"before":1,"after":1}}}');
     await writeFile(join(round, "diff", "files", "src", "a.ts", "patch"), "+x");
     await writeFile(join(round, "diff", "numbered.diff"), "   1: +x\n   2: +y");
     await writeFile(join(round, "comments", "general.json"), '["g"]');
@@ -31,8 +31,10 @@ describe("createPrTools", () => {
     const tools = createPrTools(workspace);
     await expect(callTool(tools, "mp_metadata")).resolves.toMatchObject({ details: { title: "T" } });
     await expect(callTool(tools, "preview_diffs_list")).resolves.toMatchObject({ details: [{ id: 2 }] });
-    await expect(callTool(tools, "diff_list_files")).resolves.toMatchObject({ details: [{ path: "src/a.ts" }] });
-    await expect(callTool(tools, "diff_list_files", { previewDiffId: 2 })).resolves.toMatchObject({ details: [{ path: "src/a.ts" }] });
+    await expect(callTool(tools, "diff_list_files")).resolves.toMatchObject({ details: [{ path: "src/a.ts", status: "modified", additions: 3, deletions: 1 }] });
+    await expect(callTool(tools, "diff_list_files", { previewDiffId: 2 })).resolves.toMatchObject({ details: [{ path: "src/a.ts", status: "modified", additions: 3, deletions: 1 }] });
+    const listed = (await callTool(tools, "diff_list_files")) as { details: Array<Record<string, unknown>> };
+    expect(listed.details[0]).not.toHaveProperty("lineMap");
     await expect(callTool(tools, "diff_get_file", { path: "src/a.ts" })).resolves.toMatchObject({ details: { patch: "+x" } });
     await expect(callTool(tools, "diff_numbered", { start: 2, end: 2 })).resolves.toMatchObject({ details: "   2: +y" });
     await expect(callTool(tools, "diff_numbered")).resolves.toMatchObject({ details: "   1: +x\n   2: +y" });
@@ -40,6 +42,46 @@ describe("createPrTools", () => {
     await expect(callTool(tools, "comments_inline", { line: 1 })).resolves.toMatchObject({ details: ["i"] });
     await expect(callTool(tools, "comments_inline")).resolves.toMatchObject({ details: { "1": ["i"] } });
     await expect(callTool(tools, "agent_files_list")).resolves.toMatchObject({ details: ["AGENTS.md", "rules/rule.md"] });
+  });
+
+  it("groups changed files into review batches by module and line budget", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "crh-tools-plan-"));
+    const round = join(workspace, "preview-diffs", "1");
+    const files: Array<{ path: string; safePath: string; additions: number; deletions: number }> = [
+      { path: "src/auth/a.ts", safePath: "src/auth/a.ts", additions: 100, deletions: 50 },
+      { path: "src/auth/b.ts", safePath: "src/auth/b.ts", additions: 200, deletions: 100 },
+      { path: "src/auth/c.ts", safePath: "src/auth/c.ts", additions: 10, deletions: 5 },
+      { path: "src/billing/x.ts", safePath: "src/billing/x.ts", additions: 20, deletions: 10 },
+    ];
+    for (const file of files) {
+      await mkdir(join(round, "diff", "files", file.safePath), { recursive: true });
+      await writeFile(join(round, "diff", "files", file.safePath, "meta.json"), JSON.stringify(file));
+    }
+    await symlink("1", join(workspace, "preview-diffs", "latest"), "dir");
+
+    const tools = createPrTools(workspace);
+    const result = await callTool(tools, "diff_plan_batches", { maxLines: 200, maxFiles: 10 });
+    expect(result).toMatchObject({
+      details: {
+        scopes: expect.any(Array),
+        totals: { files: 4, maxLines: 200, maxFiles: 10 },
+      },
+    });
+    const details = (result as { details: { batches: Array<{ module: string; files: string[]; changedLines: number }> } }).details;
+    expect(details.batches.map((batch) => batch.module)).toEqual(["src/auth", "src/auth", "src/auth", "src/billing"]);
+    expect(details.batches[0].files).toEqual(["src/auth/a.ts"]);
+    expect(details.batches[1].files).toEqual(["src/auth/b.ts"]);
+    expect(details.batches[2].files).toEqual(["src/auth/c.ts"]);
+    expect(details.batches[3].files).toEqual(["src/billing/x.ts"]);
+  });
+
+  it("planReviewBatches keeps a single oversized file as its own batch", () => {
+    const batches = planReviewBatches(
+      [{ path: "pkg/huge.ts", additions: 5000, deletions: 1000 }],
+      4000,
+      20,
+    );
+    expect(batches).toEqual([{ module: "pkg", files: ["pkg/huge.ts"], changedLines: 6000 }]);
   });
 
   it("returns empty lists for missing optional directories", async () => {
