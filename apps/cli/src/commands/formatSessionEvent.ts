@@ -20,8 +20,23 @@ export type EventScope =
 
 function scopePrefix(scope?: EventScope): string {
   if (!scope || scope.kind === "main") return "";
-  const truncatedScope = scope.scope.length > 40 ? `${scope.scope.slice(0, 40)}…` : scope.scope;
-  return `${MAGENTA}${BOLD}[sub:${scope.slot} ${truncatedScope}]${RESET} `;
+  return `${MAGENTA}${BOLD}[#${scope.slot}]${RESET} `;
+}
+
+function truncateScope(s: string, max = 60): string {
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
+function subBanner(slot: number, scope: string, closing = false): string {
+  const label = closing ? `/sub-agent #${slot}` : `sub-agent #${slot} ─ ${truncateScope(scope)}`;
+  return `${MAGENTA}${BOLD}── ${label} ──${RESET}`;
+}
+
+function countFindings(result: unknown): number | undefined {
+  if (!result || typeof result !== "object") return undefined;
+  const r = result as Record<string, unknown>;
+  const findings = r["findings"] ?? (r["details"] as Record<string, unknown> | undefined)?.["findings"];
+  return Array.isArray(findings) ? findings.length : undefined;
 }
 
 function truncate(value: unknown, maxLen = 120): string {
@@ -62,7 +77,8 @@ export function formatSessionEvent(event: AgentSessionEvent, scope?: EventScope)
   const p = scopePrefix(scope);
   switch (event.type) {
     case "agent_start":
-      return `${p}${tag(GREEN, "agent")} ${scope?.kind === "sub" ? "Starting sub-agent" : "Starting review session"}`;
+      if (scope?.kind === "sub") return subBanner(scope.slot, scope.scope);
+      return `${tag(GREEN, "agent")} Starting review session`;
 
     case "agent_end": {
       const last = event.messages.at(-1) as unknown as Record<string, unknown> | undefined;
@@ -70,11 +86,12 @@ export function formatSessionEvent(event: AgentSessionEvent, scope?: EventScope)
         const err = typeof last["errorMessage"] === "string" ? last["errorMessage"] : "unknown model error";
         return `${p}${tag(RED, "error")} Session ended with error: ${err}`;
       }
-      return `${p}${tag(GREEN, "agent")} ${scope?.kind === "sub" ? "Sub-agent complete" : "Session complete"}`;
+      if (scope?.kind === "sub") return subBanner(scope.slot, scope.scope, true);
+      return `${tag(GREEN, "agent")} Session complete`;
     }
 
     case "turn_start":
-      return `${p}${tag(CYAN, "think")} ${DIM}${scope?.kind === "sub" ? "Sub-agent" : "Agent"} thinking...${RESET}`;
+      return undefined;
 
     case "turn_end":
       return undefined;
@@ -92,21 +109,9 @@ export function formatSessionEvent(event: AgentSessionEvent, scope?: EventScope)
         return `${p}${tag(RED, "error")} Model error: ${err}`;
       }
       const blocks = extractAssistantBlocks(event.message);
-      if (!blocks) return undefined;
+      if (!blocks || blocks.text.length === 0) return undefined;
       const agentLabel = scope?.kind === "sub" ? "sub-agent" : "agent";
-      const parts: string[] = [];
-      if (blocks.thinking.length > 0) {
-        const thinkingMd = renderMarkdown(blocks.thinking.join("\n\n")).trimEnd();
-        const bordered = thinkingMd
-          .split("\n")
-          .map((l) => `${DIM}${MAGENTA}│${RESET} ${DIM}${l}${RESET}`)
-          .join("\n");
-        parts.push(`${p}${tag(MAGENTA, "thinking")}\n${bordered}`);
-      }
-      if (blocks.text.length > 0) {
-        parts.push(`${p}${tag(CYAN, agentLabel)}\n${renderMarkdown(blocks.text.join("\n\n"))}`);
-      }
-      return parts.length > 0 ? `${parts.join("\n")}\n` : undefined;
+      return `${p}${tag(CYAN, agentLabel)}\n${renderMarkdown(blocks.text.join("\n\n"))}\n`;
     }
 
     case "tool_execution_start": {
@@ -120,6 +125,11 @@ export function formatSessionEvent(event: AgentSessionEvent, scope?: EventScope)
     case "tool_execution_end": {
       if (event.isError) {
         return `${p}${tag(RED, "tool")} ${event.toolName} failed: ${truncate(event.result)}`;
+      }
+      if (event.toolName === "delegate_review" && (!scope || scope.kind === "main")) {
+        const count = countFindings(event.result);
+        const tail = count !== undefined ? `${count} finding${count === 1 ? "" : "s"}` : "done";
+        return `${tag(GREEN, "agent")} delegate_review complete (${tail})`;
       }
       return undefined;
     }

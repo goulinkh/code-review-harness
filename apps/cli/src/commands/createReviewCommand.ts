@@ -5,6 +5,7 @@ import { createLaunchpadProvider } from "@code-review-harness/launchpad-provider
 import { createLaunchpadSink } from "@code-review-harness/launchpad-sink";
 import { createStdoutSink } from "@code-review-harness/stdout-sink";
 import { formatSessionEvent } from "./formatSessionEvent.js";
+import { createThinkingStreamer } from "./streamThinking.js";
 
 const BOLD = "\x1b[1m";
 const RESET = "\x1b[0m";
@@ -56,6 +57,8 @@ async function runReviewCommand(options: ReviewCommandOptions): Promise<void> {
   const provider = createLaunchpadProvider({ url: options.pr });
   const sink = options.sink === "launchpad" ? createLaunchpadSink({ url: options.pr }) : createStdoutSink();
 
+  const streamThinking = createThinkingStreamer((chunk) => process.stderr.write(chunk));
+
   logProgress("Preparing workspace...");
   const { session } = await createReviewSession({
     provider,
@@ -64,9 +67,11 @@ async function runReviewCommand(options: ReviewCommandOptions): Promise<void> {
     workspaceProgress: logProgress,
     onChildEvent: (event, ctx) => {
       if (options.debug) {
-        log(`${DIM}[debug sub:${ctx.slot}] ${JSON.stringify(event)}${RESET}`);
+        log(`${DIM}[debug sub-agent ${ctx.slot}] ${JSON.stringify(event)}${RESET}`);
       }
-      const line = formatSessionEvent(event, { kind: "sub", slot: ctx.slot, scope: ctx.scope });
+      const scope = { kind: "sub" as const, slot: ctx.slot, scope: ctx.scope };
+      if (streamThinking(event, scope)) return;
+      const line = formatSessionEvent(event, scope);
       if (line !== undefined) {
         log(line);
       }
@@ -78,6 +83,7 @@ async function runReviewCommand(options: ReviewCommandOptions): Promise<void> {
     if (options.debug) {
       log(`${DIM}[debug] ${JSON.stringify(event)}${RESET}`);
     }
+    if (streamThinking(event, { kind: "main" })) return;
     const line = formatSessionEvent(event, { kind: "main" });
     if (line !== undefined) {
       log(line);

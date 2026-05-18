@@ -85,11 +85,12 @@ async function runChildReview(options: DelegateReviewToolOptions, params: { scop
   const resourceLoader = createChildResourceLoader(options.workspace, settingsManager, options.systemPrompt ?? defaultSubReviewerPrompt);
   await resourceLoader.reload();
 
+  const customTools = [...createRepoFileOps(options.provider), ...createPrTools(options.workspace), reportTool];
   const { session } = await createAgentSession({
     cwd: options.workspace,
     model: options.model,
-    tools: ["read", "grep", "find", "ls"],
-    customTools: [...createRepoFileOps(options.provider), ...createPrTools(options.workspace), reportTool],
+    tools: ["read", "grep", "find", "ls", ...customTools.map((tool) => tool.name)],
+    customTools,
     resourceLoader,
     sessionManager: SessionManager.inMemory(options.workspace),
     settingsManager,

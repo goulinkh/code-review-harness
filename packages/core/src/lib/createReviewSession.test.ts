@@ -9,10 +9,10 @@ const piMock = vi.hoisted(() => ({
   SettingsManager: { inMemory: vi.fn((settings: unknown) => ({ settings })) },
 }));
 const prepareWorkspaceMock = vi.hoisted(() => vi.fn(async () => undefined));
-const createRepoFileOpsMock = vi.hoisted(() => vi.fn(() => ["repo-tool"]));
-const createPrToolsMock = vi.hoisted(() => vi.fn(() => ["pr-tool"]));
-const createSubmitReviewToolMock = vi.hoisted(() => vi.fn(() => "submit-tool"));
-const createDelegateReviewToolMock = vi.hoisted(() => vi.fn(() => "delegate-tool"));
+const createRepoFileOpsMock = vi.hoisted(() => vi.fn(() => [{ name: "repo_read" }]));
+const createPrToolsMock = vi.hoisted(() => vi.fn(() => [{ name: "mp_metadata" }]));
+const createSubmitReviewToolMock = vi.hoisted(() => vi.fn(() => ({ name: "submit_review" })));
+const createDelegateReviewToolMock = vi.hoisted(() => vi.fn(() => ({ name: "delegate_review" })));
 
 vi.mock("@earendil-works/pi-coding-agent", () => piMock);
 vi.mock("./prepareWorkspace.js", () => ({ prepareWorkspace: prepareWorkspaceMock }));
@@ -35,8 +35,8 @@ describe("createReviewSession", () => {
     expect(prepareWorkspaceMock).toHaveBeenCalledWith(provider, { root: "/workspace" });
     expect(piMock.createAgentSession).toHaveBeenCalledWith(expect.objectContaining({
       cwd: "/workspace",
-      tools: ["read", "grep", "find", "ls"],
-      customTools: ["repo-tool", "pr-tool", "delegate-tool", "submit-tool"],
+      tools: ["read", "grep", "find", "ls", "repo_read", "mp_metadata", "delegate_review", "submit_review"],
+      customTools: [{ name: "repo_read" }, { name: "mp_metadata" }, { name: "delegate_review" }, { name: "submit_review" }],
     }));
     const loader = piMock.DefaultResourceLoader.mock.instances[0] as { options: Record<string, () => unknown> };
     expect(loader.options.skillsOverride()).toEqual({ skills: [], diagnostics: [] });

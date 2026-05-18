@@ -22,16 +22,17 @@ export async function createReviewSession(options: CreateReviewSessionOptions): 
   const resourceLoader = createResourceLoader(workspace, settingsManager, options.systemPrompt ?? defaultReviewerPrompt);
   await resourceLoader.reload();
 
+  const customTools = [
+    ...createRepoFileOps(options.provider),
+    ...createPrTools(workspace),
+    createDelegateReviewTool({ workspace, provider: options.provider, model: options.model, systemPrompt: options.subAgentSystemPrompt, onChildEvent: options.onChildEvent }),
+    createSubmitReviewTool(options.sink, { provider: options.provider, workspace }),
+  ];
   const { session } = await createAgentSession({
     cwd: workspace,
     model: options.model,
-    tools: ["read", "grep", "find", "ls"],
-    customTools: [
-      ...createRepoFileOps(options.provider),
-      ...createPrTools(workspace),
-      createDelegateReviewTool({ workspace, provider: options.provider, model: options.model, systemPrompt: options.subAgentSystemPrompt, onChildEvent: options.onChildEvent }),
-      createSubmitReviewTool(options.sink, { provider: options.provider, workspace }),
-    ],
+    tools: ["read", "grep", "find", "ls", ...customTools.map((tool) => tool.name)],
+    customTools,
     resourceLoader,
     sessionManager: SessionManager.inMemory(workspace),
     settingsManager,
