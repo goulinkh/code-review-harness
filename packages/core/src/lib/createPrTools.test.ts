@@ -19,7 +19,7 @@ describe("createPrTools", () => {
     await mkdir(join(workspace, "agent", "rules"), { recursive: true });
     await writeFile(join(workspace, "metadata.json"), '{"title":"T"}');
     await writeFile(join(workspace, "preview-diffs", "index.json"), '[{"id":2}]');
-    await writeFile(join(round, "diff", "files", "src", "a.ts", "meta.json"), '{"path":"src/a.ts","status":"modified","additions":3,"deletions":1,"lineMap":{"1":{"before":1,"after":1}}}');
+    await writeFile(join(round, "diff", "files", "src", "a.ts", "meta.json"), '{"path":"src/a.ts","status":"modified","additions":3,"deletions":1,"lineMap":{"1":{"side":"after","fileLine":10},"2":{"side":"before","fileLine":9}}}');
     await writeFile(join(round, "diff", "files", "src", "a.ts", "patch"), "+x");
     await writeFile(join(round, "diff", "numbered.diff"), "   1: +x\n   2: +y");
     await writeFile(join(round, "comments", "general.json"), '["g"]');
@@ -42,6 +42,10 @@ describe("createPrTools", () => {
     await expect(callTool(tools, "comments_inline", { line: 1 })).resolves.toMatchObject({ details: ["i"] });
     await expect(callTool(tools, "comments_inline")).resolves.toMatchObject({ details: { "1": ["i"] } });
     await expect(callTool(tools, "agent_files_list")).resolves.toMatchObject({ details: ["AGENTS.md", "rules/rule.md"] });
+
+    await expect(callTool(tools, "diff_map_line", { diffLine: 1, path: "src/a.ts" })).resolves.toMatchObject({ details: { path: "src/a.ts", side: "after", fileLine: 10 } });
+    await expect(callTool(tools, "diff_map_line", { diffLine: 1 })).resolves.toMatchObject({ details: { path: "src/a.ts", side: "after", fileLine: 10 } });
+    await expect(callTool(tools, "diff_map_line", { diffLine: 999 })).resolves.toMatchObject({ details: { error: "diff line 999 not found in any changed file" } });
 
     await expect(callTool(tools, "mark_file_reviewed", { path: "src/a.ts" })).resolves.toMatchObject({
       details: { path: "src/a.ts", reviewedCount: 1, alreadyReviewed: false },

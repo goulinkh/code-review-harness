@@ -52,6 +52,32 @@ export function createPrTools(workspace: string): ToolDefinition[] {
     }),
     defineJsonTool("agent_files_list", "List materialized agent instruction files", Type.Object({}), async () => listFiles(join(workspace, "agent"))),
     defineJsonTool(
+      "diff_map_line",
+      "Resolve a numbered-diff line number to its actual file line. Returns { path, side, fileLine } where side is 'before' (deleted), 'after' (added), or 'context'. Pass path to restrict lookup to one file; omit to search all changed files.",
+      Type.Object({ diffLine: Type.Number(), path: Type.Optional(Type.String()), previewDiffId: Type.Optional(Type.Number()) }),
+      async (params) => {
+        const root = await resolvePreviewDiffRoot(workspace, params.previewDiffId);
+        const filesRoot = join(root, "diff", "files");
+        const key = String(params.diffLine);
+
+        if (params.path !== undefined) {
+          const safePath = createSafeDiffPath(params.path);
+          const meta = (await readJson(join(filesRoot, safePath, "meta.json"))) as { lineMap?: Record<string, { side: string; fileLine: number }> };
+          const entry = meta.lineMap?.[key];
+          if (!entry) return { error: `diff line ${params.diffLine} not found in ${params.path}` };
+          return { path: params.path, side: entry.side, fileLine: entry.fileLine };
+        }
+
+        const files = await listFiles(filesRoot);
+        for (const file of files.filter((f) => f.endsWith("/meta.json"))) {
+          const meta = (await readJson(join(filesRoot, file))) as { path?: string; lineMap?: Record<string, { side: string; fileLine: number }> };
+          const entry = meta.lineMap?.[key];
+          if (entry) return { path: meta.path, side: entry.side, fileLine: entry.fileLine };
+        }
+        return { error: `diff line ${params.diffLine} not found in any changed file` };
+      },
+    ),
+    defineJsonTool(
       "mark_file_reviewed",
       "Record a changed file as reviewed. Call once per file after inspecting it. Drives the review progress percentage (reviewed / total changed files). `path` must match a path from diff_list_files.",
       Type.Object({ path: Type.String() }),
