@@ -14,6 +14,7 @@ interface PanelState {
   changedFiles: Set<string>;
   reviewedFiles: Set<string>;
   submitted: boolean;
+  totalTokens: number;
 }
 
 interface StatusPanel {
@@ -48,6 +49,7 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
     changedFiles: new Set(),
     reviewedFiles: new Set(),
     submitted: false,
+    totalTokens: 0,
   };
 
   function getRows(): number {
@@ -90,6 +92,13 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
     return Math.max(0, Math.min(100, pct));
   }
 
+  function formatTokens(n: number): string {
+    if (n === 0) return "";
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M tok`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k tok`;
+    return `${n} tok`;
+  }
+
   function formatPercent(pct: number): string {
     if (pct >= 100) return "100%";
     if (pct <= 0) return "0.0%";
@@ -117,14 +126,20 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
     const left = `${leftPrefix}${leftCore}`;
 
     let line1: string;
+    const tokLabel = formatTokens(state.totalTokens);
     if (pct === null) {
-      line1 = `${left}${" ".repeat(Math.max(0, cols - getVisibleLength(left) - 1))}${DIM}┐${RESET}`;
+      const tokPart = tokLabel ? `  ${DIM}${tokLabel}${RESET}` : "";
+      const cornerSuffix = ` ${DIM}┐${RESET}`;
+      const right = `${tokPart}${cornerSuffix}`;
+      const pad = Math.max(0, cols - getVisibleLength(left) - getVisibleLength(right));
+      line1 = `${left}${" ".repeat(pad)}${right}`;
     } else {
       const pctLabel = formatPercent(pct);
       const MAX_BAR = 40;
       const MIN_BAR = 8;
       const cornerSuffix = ` ${DIM}┐${RESET}`;
-      const pctSuffix = ` ${YELLOW}${pctLabel}${RESET}${cornerSuffix}`;
+      const tokPart = tokLabel ? `  ${DIM}${tokLabel}${RESET}` : "";
+      const pctSuffix = ` ${YELLOW}${pctLabel}${RESET}${tokPart}${cornerSuffix}`;
       const available = cols - getVisibleLength(left) - getVisibleLength(pctSuffix) - 1; // 1 space before bar
       const barWidth = Math.max(MIN_BAR, Math.min(MAX_BAR, available));
       const bar = renderProgressBar(pct, barWidth);
@@ -181,6 +196,14 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
             state.reviewedFiles.add(path);
             changed = true;
           }
+        }
+        break;
+      }
+      case "message_end": {
+        const msg = event.message as { role?: string; usage?: { totalTokens?: number } };
+        if (msg.role === "assistant" && typeof msg.usage?.totalTokens === "number") {
+          state.totalTokens += msg.usage.totalTokens;
+          changed = true;
         }
         break;
       }
