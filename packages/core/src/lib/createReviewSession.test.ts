@@ -33,7 +33,7 @@ describe("createReviewSession", () => {
     const provider = { id: "p", remoteGit: () => ({ gitdir: "/git" }) } as ReviewProvider;
     const sink = { id: "s" } as ReviewSink;
 
-    await expect(createReviewSession({ provider, sink, workspace: "/workspace", systemPrompt: "prompt" })).resolves.toEqual({ session, workspace: "/workspace", gitdir: "/git", changedFilesCount: 0 });
+    await expect(createReviewSession({ provider, sink, workspace: "/workspace", systemPrompt: "prompt" })).resolves.toEqual({ session, workspace: "/workspace", gitdir: "/git", changedFiles: [] });
     expect(prepareWorkspaceMock).toHaveBeenCalledWith(provider, { root: "/workspace" });
     expect(piMock.createAgentSession).toHaveBeenCalledWith(expect.objectContaining({
       cwd: "/workspace",

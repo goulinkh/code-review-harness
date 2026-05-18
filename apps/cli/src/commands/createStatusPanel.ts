@@ -11,14 +11,14 @@ const YELLOW = "\x1b[33m";
 interface PanelState {
   phase: string;
   running: Map<number, string>;
+  changedFiles: Set<string>;
   reviewedFiles: Set<string>;
-  totalChangedFiles: number;
   submitted: boolean;
 }
 
 interface StatusPanel {
   setPhase(phase: string): void;
-  setTotalChangedFiles(total: number): void;
+  setChangedFiles(files: string[]): void;
   handle(event: AgentSessionEvent, scopeSlot?: number, scopeText?: string): void;
   redraw(): void;
   dispose(): void;
@@ -45,8 +45,8 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
   const state: PanelState = {
     phase: "Initializing",
     running: new Map(),
+    changedFiles: new Set(),
     reviewedFiles: new Set(),
-    totalChangedFiles: 0,
     submitted: false,
   };
 
@@ -80,8 +80,8 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
 
   function calculatePercent(): number | null {
     if (state.submitted) return 100;
-    if (state.totalChangedFiles === 0) return null;
-    const pct = (state.reviewedFiles.size / state.totalChangedFiles) * 100;
+    if (state.changedFiles.size === 0) return null;
+    const pct = (state.reviewedFiles.size / state.changedFiles.size) * 100;
     return Math.max(0, Math.min(100, pct));
   }
 
@@ -102,7 +102,7 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
     const cols = getCols();
     const pct = calculatePercent();
     const running = state.running.size;
-    const filesLabel = state.totalChangedFiles > 0 ? `${state.reviewedFiles.size}/${state.totalChangedFiles}` : "—";
+    const filesLabel = state.changedFiles.size > 0 ? `${state.reviewedFiles.size}/${state.changedFiles.size}` : "—";
 
     const leftPrefix = `${DIM}┌${RESET} `;
     const leftCore =
@@ -172,7 +172,7 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
           changed = true;
         } else if (event.toolName === "mark_file_reviewed") {
           const path = extractPath(event.args);
-          if (path && !state.reviewedFiles.has(path)) {
+          if (path && state.changedFiles.has(path) && !state.reviewedFiles.has(path)) {
             state.reviewedFiles.add(path);
             changed = true;
           }
@@ -197,8 +197,11 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
     redraw();
   }
 
-  function setTotalChangedFiles(total: number): void {
-    state.totalChangedFiles = Math.max(0, total);
+  function setChangedFiles(files: string[]): void {
+    state.changedFiles = new Set(files);
+    for (const reviewed of [...state.reviewedFiles]) {
+      if (!state.changedFiles.has(reviewed)) state.reviewedFiles.delete(reviewed);
+    }
     redraw();
   }
 
@@ -215,7 +218,7 @@ export function createStatusPanel(stream: NodeJS.WriteStream): StatusPanel {
     });
   }
 
-  return { setPhase, setTotalChangedFiles, handle, redraw, dispose };
+  return { setPhase, setChangedFiles, handle, redraw, dispose };
 }
 
 function truncate(s: string, max: number): string {

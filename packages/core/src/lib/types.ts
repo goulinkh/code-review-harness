@@ -111,7 +111,7 @@ export interface ReviewSessionHandle {
   session: AgentSession;
   workspace: string;
   gitdir: string;
-  changedFilesCount: number;
+  changedFiles: string[];
 }
 
 export interface SandboxProfileOptions {

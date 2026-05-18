@@ -69,7 +69,7 @@ async function runReviewCommand(options: ReviewCommandOptions): Promise<void> {
 
   panel.setPhase("Preparing workspace");
   logProgress("Preparing workspace...");
-  const { session, changedFilesCount } = await createReviewSession({
+  const { session, changedFiles } = await createReviewSession({
     provider,
     sink,
     model: parseModel(options.model, options.modelBaseUrl),
@@ -88,7 +88,7 @@ async function runReviewCommand(options: ReviewCommandOptions): Promise<void> {
     },
   });
   logProgress("Workspace ready.\n");
-  panel.setTotalChangedFiles(changedFilesCount);
+  panel.setChangedFiles(changedFiles);
   panel.setPhase("Reviewing");
 
   session.subscribe((event) => {

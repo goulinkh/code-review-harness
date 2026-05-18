@@ -73,32 +73,37 @@ export async function createReviewSession(options: CreateReviewSessionOptions): 
     settingsManager,
   });
 
-  const changedFilesCount = await countChangedFiles(workspace);
+  const changedFiles = await listChangedFiles(workspace);
 
-  return { session, workspace, gitdir, changedFilesCount };
+  return { session, workspace, gitdir, changedFiles };
 }
 
-async function countChangedFiles(workspace: string): Promise<number> {
+async function listChangedFiles(workspace: string): Promise<string[]> {
   try {
     const target = await readlink(join(workspace, "preview-diffs", "latest"));
     const filesRoot = join(workspace, "preview-diffs", target, "diff", "files");
-    return await countMetaFiles(filesRoot);
+    const paths: string[] = [];
+    await collectMetaPaths(filesRoot, paths);
+    return paths;
   } catch {
-    return 0;
+    return [];
   }
 }
 
-async function countMetaFiles(dir: string): Promise<number> {
-  let count = 0;
+async function collectMetaPaths(dir: string, out: string[]): Promise<void> {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      count += await countMetaFiles(join(dir, entry.name));
+      await collectMetaPaths(join(dir, entry.name), out);
     } else if (entry.name === "meta.json") {
-      count += 1;
+      try {
+        const meta = JSON.parse(await readFile(join(dir, entry.name), "utf8")) as { path?: unknown };
+        if (typeof meta.path === "string" && meta.path.length > 0) out.push(meta.path);
+      } catch {
+        // skip unreadable meta
+      }
     }
   }
-  return count;
 }
 
 function createResourceLoader(workspace: string, settingsManager: SettingsManager, systemPrompt: string): ResourceLoader {
