@@ -41,7 +41,7 @@ describe("createRepoFileOps", () => {
   it("reads blobs and stats files", async () => {
     gitMock.resolveRef.mockResolvedValue("oid");
     gitMock.readBlob.mockResolvedValue({ oid: "blob", blob: new TextEncoder().encode("hello") });
-    await expect(callTool("repo_read", { path: "a.ts" })).resolves.toMatchObject({ details: "hello" });
+    await expect(callTool("repo_read", { path: "a.ts" })).resolves.toMatchObject({ details: { content: "hello", totalLines: 1, startLine: 1, endLine: 1, truncated: false } });
     await expect(callTool("repo_stat", { path: "a.ts" })).resolves.toMatchObject({ details: { oid: "blob", size: 5 } });
   });
 
@@ -54,7 +54,7 @@ describe("createRepoFileOps", () => {
       await map("dir/b.txt", [{ type: async () => "blob", content: async () => new TextEncoder().encode("one\nhit") }]),
       await map("dir/c.txt", [{ type: async () => "blob", content: async () => undefined }]),
     ]);
-    await expect(callTool("repo_grep", { pattern: "hit", pathGlob: "dir" })).resolves.toMatchObject({ details: [{ path: "dir/b.txt", line: 2, text: "hit" }] });
+    await expect(callTool("repo_grep", { pattern: "hit", pathGlob: "dir" })).resolves.toMatchObject({ details: { matches: [{ path: "dir/b.txt", line: 2, text: "hit" }], truncated: false } });
   });
 
 
@@ -64,11 +64,20 @@ describe("createRepoFileOps", () => {
       await map("dir/nohit.txt", [{ type: async () => "blob", content: async () => new TextEncoder().encode("miss") }]),
     ]);
 
-    await expect(callTool("repo_grep", { pattern: "hit" })).resolves.toMatchObject({ details: [] });
+    await expect(callTool("repo_grep", { pattern: "hit" })).resolves.toMatchObject({ details: { matches: [], truncated: false } });
   });
 
   it("throws git errors from tool execution", async () => {
     gitMock.resolveRef.mockRejectedValue(new Error("bad ref"));
-    await expect(callTool("repo_ls")).rejects.toThrow("bad ref");
+    await expect(callTool("repo_ls")).rejects.toThrow(/Could not resolve ref/);
+  });
+
+  it("falls back to refs/remotes/origin when refs/heads is missing", async () => {
+    gitMock.resolveRef.mockImplementation(async ({ ref }: { ref: string }) => {
+      if (ref === "refs/remotes/origin/feat/x") return "oid";
+      throw new Error(`Could not find ${ref}`);
+    });
+    gitMock.readBlob.mockResolvedValue({ oid: "blob", blob: new TextEncoder().encode("hi") });
+    await expect(callTool("repo_read", { path: "a.ts", ref: "refs/heads/feat/x" })).resolves.toMatchObject({ details: { content: "hi" } });
   });
 });
