@@ -70,16 +70,18 @@ export function createPrTools(workspace: string): ToolDefinition[] {
         await fs.writeFile(reviewedPath, JSON.stringify(current));
         return { path: params.path, reviewedCount: current.length, alreadyReviewed };
       },
+      "sequential",
     ),
   ];
 }
 
-function defineJsonTool<TParams extends ReturnType<typeof Type.Object>>(name: string, description: string, parameters: TParams, run: (params: import("@sinclair/typebox").Static<TParams>) => Promise<unknown>): ToolDefinition {
+function defineJsonTool<TParams extends ReturnType<typeof Type.Object>>(name: string, description: string, parameters: TParams, run: (params: import("@sinclair/typebox").Static<TParams>) => Promise<unknown>, executionMode?: "sequential" | "parallel"): ToolDefinition {
   return defineTool({
     name,
     label: name,
     description,
     parameters,
+    ...(executionMode ? { executionMode } : {}),
     async execute(_toolCallId, params) {
       const value = await run(params as import("@sinclair/typebox").Static<TParams>);
       const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
