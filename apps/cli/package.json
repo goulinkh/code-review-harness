@@ -1,28 +1,71 @@
 {
-  "name": "@code-review-harness/cli",
+  "name": "code-review-harness",
   "version": "0.1.0",
+  "description": "AI code review harness for Launchpad merge proposals",
   "type": "module",
-  "private": true,
+  "license": "MIT",
+  "author": "Goulin Khoge",
+  "homepage": "https://github.com/goulinkh/code-review-harness#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goulinkh/code-review-harness.git",
+    "directory": "apps/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/goulinkh/code-review-harness/issues"
+  },
   "bin": {
-    "crh": "./dist/index.js"
+    "crh": "./dist/index.js",
+    "code-review-harness": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "code-review",
+    "launchpad",
+    "ai",
+    "cli",
+    "review",
+    "claude",
+    "merge-proposal"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "build": "node build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "node build.mjs && cp ../../README.md ./README.md"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "^0.75.1",
+    "@earendil-works/pi-coding-agent": "^0.75.1",
+    "@sinclair/typebox": "^0.34.41",
+    "better-result": "^2.9.2",
+    "commander": "^12.1.0",
+    "isomorphic-git": "^1.38.1",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0",
+    "mathjs": "^14.0.0",
+    "oauth-1.0a": "^2.2.6",
+    "parse-diff": "^0.11.1",
+    "undici": "^8.3.0"
+  },
+  "devDependencies": {
     "@code-review-harness/core": "workspace:*",
     "@code-review-harness/launchpad-provider": "workspace:*",
     "@code-review-harness/launchpad-sink": "workspace:*",
     "@code-review-harness/stdout-sink": "workspace:*",
-    "@earendil-works/pi-ai": "^0.75.1",
-    "commander": "^12.1.0",
-    "marked": "^15.0.12",
-    "marked-terminal": "^7.3.0"
-  },
-  "devDependencies": {
-    "@types/marked-terminal": "^6.1.1"
+    "@types/marked-terminal": "^6.1.1",
+    "esbuild": "^0.24.0"
   }
 }

@@ -2,3 +2,6 @@ node_modules/
 dist/
 coverage/
 .env*
+
+# Generated at publish time by apps/cli/package.json prepublishOnly
+apps/cli/README.md
