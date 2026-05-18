@@ -3,21 +3,23 @@
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "import": "./dist/index.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@code-review-harness/core": "workspace:*",
     "@code-review-harness/launchpad-sdk": "workspace:*",
+    "better-result": "^2.9.2",
     "isomorphic-git": "^1.38.1"
   }
 }

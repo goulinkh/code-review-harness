@@ -1,0 +1,153 @@
+import type { AgentSessionEvent } from "@code-review-harness/core";
+import { renderMarkdown } from "./renderMarkdown.js";
+
+const RESET = "\x1b[0m";
+const DIM = "\x1b[2m";
+const CYAN = "\x1b[36m";
+const YELLOW = "\x1b[33m";
+const GREEN = "\x1b[32m";
+const RED = "\x1b[31m";
+const BOLD = "\x1b[1m";
+const MAGENTA = "\x1b[35m";
+
+function tag(color: string, label: string): string {
+  return `${color}${BOLD}[${label}]${RESET}`;
+}
+
+export type EventScope =
+  | { kind: "main" }
+  | { kind: "sub"; slot: number; scope: string };
+
+function scopePrefix(scope?: EventScope): string {
+  if (!scope || scope.kind === "main") return "";
+  const truncatedScope = scope.scope.length > 40 ? `${scope.scope.slice(0, 40)}…` : scope.scope;
+  return `${MAGENTA}${BOLD}[sub:${scope.slot} ${truncatedScope}]${RESET} `;
+}
+
+function truncate(value: unknown, maxLen = 120): string {
+  const s = typeof value === "string" ? value : JSON.stringify(value);
+  return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
+}
+
+interface AssistantBlocks {
+  thinking: string[];
+  text: string[];
+}
+
+function extractAssistantBlocks(message: unknown): AssistantBlocks | undefined {
+  if (!message || typeof message !== "object") return undefined;
+  const msg = message as Record<string, unknown>;
+  if (msg["role"] !== "assistant") return undefined;
+  if (!Array.isArray(msg["content"])) return undefined;
+  const thinking: string[] = [];
+  const text: string[] = [];
+  for (const block of msg["content"] as unknown[]) {
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+    if (b["type"] === "thinking" && typeof b["thinking"] === "string" && b["thinking"].trim()) {
+      thinking.push(b["thinking"].trim());
+    } else if (b["type"] === "text" && typeof b["text"] === "string" && b["text"].trim()) {
+      text.push(b["text"].trim());
+    }
+  }
+  if (thinking.length === 0 && text.length === 0) return undefined;
+  return { thinking, text };
+}
+
+/**
+ * Format an AgentSessionEvent into a human-readable line for stderr output.
+ * Returns undefined for noisy events that don't need user-visible output.
+ */
+export function formatSessionEvent(event: AgentSessionEvent, scope?: EventScope): string | undefined {
+  const p = scopePrefix(scope);
+  switch (event.type) {
+    case "agent_start":
+      return `${p}${tag(GREEN, "agent")} ${scope?.kind === "sub" ? "Starting sub-agent" : "Starting review session"}`;
+
+    case "agent_end": {
+      const last = event.messages.at(-1) as unknown as Record<string, unknown> | undefined;
+      if (last?.["role"] === "assistant" && last?.["stopReason"] === "error") {
+        const err = typeof last["errorMessage"] === "string" ? last["errorMessage"] : "unknown model error";
+        return `${p}${tag(RED, "error")} Session ended with error: ${err}`;
+      }
+      return `${p}${tag(GREEN, "agent")} ${scope?.kind === "sub" ? "Sub-agent complete" : "Session complete"}`;
+    }
+
+    case "turn_start":
+      return `${p}${tag(CYAN, "think")} ${DIM}${scope?.kind === "sub" ? "Sub-agent" : "Agent"} thinking...${RESET}`;
+
+    case "turn_end":
+      return undefined;
+
+    case "message_start":
+      return undefined;
+
+    case "message_update":
+      return undefined;
+
+    case "message_end": {
+      const msg = event.message as unknown as Record<string, unknown>;
+      if (msg["role"] === "assistant" && msg["stopReason"] === "error") {
+        const err = typeof msg["errorMessage"] === "string" ? msg["errorMessage"] : "unknown model error";
+        return `${p}${tag(RED, "error")} Model error: ${err}`;
+      }
+      const blocks = extractAssistantBlocks(event.message);
+      if (!blocks) return undefined;
+      const agentLabel = scope?.kind === "sub" ? "sub-agent" : "agent";
+      const parts: string[] = [];
+      if (blocks.thinking.length > 0) {
+        const thinkingMd = renderMarkdown(blocks.thinking.join("\n\n")).trimEnd();
+        const bordered = thinkingMd
+          .split("\n")
+          .map((l) => `${DIM}${MAGENTA}│${RESET} ${DIM}${l}${RESET}`)
+          .join("\n");
+        parts.push(`${p}${tag(MAGENTA, "thinking")}\n${bordered}`);
+      }
+      if (blocks.text.length > 0) {
+        parts.push(`${p}${tag(CYAN, agentLabel)}\n${renderMarkdown(blocks.text.join("\n\n"))}`);
+      }
+      return parts.length > 0 ? `${parts.join("\n")}\n` : undefined;
+    }
+
+    case "tool_execution_start": {
+      const args = truncate(event.args);
+      return `${p}${tag(YELLOW, "tool")} ${BOLD}${event.toolName}${RESET} ${DIM}${args}${RESET}`;
+    }
+
+    case "tool_execution_update":
+      return undefined;
+
+    case "tool_execution_end": {
+      if (event.isError) {
+        return `${p}${tag(RED, "tool")} ${event.toolName} failed: ${truncate(event.result)}`;
+      }
+      return undefined;
+    }
+
+    case "compaction_start":
+      return `${p}${tag(DIM, "compact")} Compacting context (${event.reason})...`;
+
+    case "compaction_end":
+      if (event.aborted) return `${p}${tag(DIM, "compact")} Compaction aborted`;
+      return `${p}${tag(DIM, "compact")} Compaction complete`;
+
+    case "auto_retry_start":
+      return `${p}${tag(YELLOW, "retry")} Retrying (attempt ${event.attempt}/${event.maxAttempts}): ${event.errorMessage}`;
+
+    case "auto_retry_end":
+      if (!event.success) return `${p}${tag(RED, "retry")} All retries failed: ${event.finalError ?? "unknown error"}`;
+      return undefined;
+
+    case "queue_update":
+      return undefined;
+
+    case "session_info_changed":
+      return undefined;
+
+    case "thinking_level_changed":
+      return `${p}${tag(DIM, "model")} Thinking level: ${event.level}`;
+
+    default:
+      return undefined;
+  }
+}
