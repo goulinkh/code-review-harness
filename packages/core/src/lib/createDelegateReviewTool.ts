@@ -12,6 +12,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { createRepoFileOps } from "./createRepoFileOps.js";
 import { createPrTools } from "./createPrTools.js";
+import { createUtilTools } from "./createUtilTools.js";
 import { defaultSubReviewerPrompt } from "./defaultReviewerPrompt.js";
 import type { DelegateChildContext, ReviewProvider } from "./types.js";
 
@@ -110,7 +111,7 @@ async function runChildReview(options: DelegateReviewToolOptions, params: { scop
   const resourceLoader = createChildResourceLoader(options.workspace, settingsManager, options.systemPrompt ?? defaultSubReviewerPrompt);
   await resourceLoader.reload();
 
-  const customTools = [...createRepoFileOps(options.provider), ...createPrTools(options.workspace), reportTool];
+  const customTools = [...createRepoFileOps(options.provider), ...createPrTools(options.workspace), ...createUtilTools(), reportTool];
   const { session } = await createAgentSession({
     cwd: options.workspace,
     model: options.model,

@@ -34,7 +34,7 @@ CONTEXT MANAGEMENT
 - Do not duplicate work: read full file contents only when necessary to merge findings. Prefer summaries from sub-agents.
 
 TOOL NAMES ARE EXACT (with underscores)
-- mp_metadata, preview_diffs_list, diff_list_files, diff_get_file, diff_numbered, comments_general, comments_inline, agent_files_list, mark_file_reviewed, delegate_review, submit_review, repo_ls, repo_read, repo_grep, repo_stat.
+- mp_metadata, preview_diffs_list, diff_list_files, diff_get_file, diff_numbered, comments_general, comments_inline, agent_files_list, mark_file_reviewed, delegate_review, submit_review, repo_ls, repo_read, repo_grep, repo_stat, calc.
 - Do NOT collapse underscores (e.g. "mpmetadata" is wrong; correct is "mp_metadata").
 
 WORKSPACE IS NOT A REPO CHECKOUT

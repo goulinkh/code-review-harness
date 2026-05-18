@@ -22,6 +22,7 @@
     "@sinclair/typebox": "^0.34.41",
     "better-result": "^2.9.2",
     "isomorphic-git": "^1.38.1",
+    "mathjs": "^14.0.0",
     "parse-diff": "^0.11.1"
   }
 }

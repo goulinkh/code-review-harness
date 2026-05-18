@@ -11,6 +11,7 @@ const piMock = vi.hoisted(() => ({
 const prepareWorkspaceMock = vi.hoisted(() => vi.fn(async () => undefined));
 const createRepoFileOpsMock = vi.hoisted(() => vi.fn(() => [{ name: "repo_read" }]));
 const createPrToolsMock = vi.hoisted(() => vi.fn(() => [{ name: "mp_metadata" }]));
+const createUtilToolsMock = vi.hoisted(() => vi.fn(() => [{ name: "calc" }]));
 const createSubmitReviewToolMock = vi.hoisted(() => vi.fn(() => ({ name: "submit_review" })));
 const createDelegateReviewToolMock = vi.hoisted(() => vi.fn(() => ({ name: "delegate_review" })));
 
@@ -18,6 +19,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => piMock);
 vi.mock("./prepareWorkspace.js", () => ({ prepareWorkspace: prepareWorkspaceMock }));
 vi.mock("./createRepoFileOps.js", () => ({ createRepoFileOps: createRepoFileOpsMock }));
 vi.mock("./createPrTools.js", () => ({ createPrTools: createPrToolsMock }));
+vi.mock("./createUtilTools.js", () => ({ createUtilTools: createUtilToolsMock }));
 vi.mock("./createSubmitReviewTool.js", () => ({ createSubmitReviewTool: createSubmitReviewToolMock }));
 vi.mock("./createDelegateReviewTool.js", () => ({ createDelegateReviewTool: createDelegateReviewToolMock }));
 
@@ -35,8 +37,8 @@ describe("createReviewSession", () => {
     expect(prepareWorkspaceMock).toHaveBeenCalledWith(provider, { root: "/workspace" });
     expect(piMock.createAgentSession).toHaveBeenCalledWith(expect.objectContaining({
       cwd: "/workspace",
-      tools: ["read", "grep", "find", "ls", "repo_read", "mp_metadata", "delegate_review", "submit_review"],
-      customTools: [{ name: "repo_read" }, { name: "mp_metadata" }, { name: "delegate_review" }, { name: "submit_review" }],
+      tools: ["read", "grep", "find", "ls", "repo_read", "mp_metadata", "calc", "delegate_review", "submit_review"],
+      customTools: [{ name: "repo_read" }, { name: "mp_metadata" }, { name: "calc" }, { name: "delegate_review" }, { name: "submit_review" }],
     }));
     const loader = piMock.DefaultResourceLoader.mock.instances[0] as { options: Record<string, () => unknown> };
     expect(loader.options.skillsOverride()).toEqual({ skills: [], diagnostics: [] });

@@ -1,10 +1,11 @@
-import { mkdtemp, readdir, readlink } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, readlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createAgentSession, DefaultResourceLoader, SessionManager, SettingsManager, type ResourceLoader, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { prepareWorkspace } from "./prepareWorkspace.js";
 import { createRepoFileOps } from "./createRepoFileOps.js";
 import { createPrTools } from "./createPrTools.js";
+import { createUtilTools } from "./createUtilTools.js";
 import { createDelegateReviewTool } from "./createDelegateReviewTool.js";
 import { createSubmitReviewTool } from "./createSubmitReviewTool.js";
 import { defaultReviewerPrompt } from "./defaultReviewerPrompt.js";
@@ -58,6 +59,7 @@ export async function createReviewSession(options: CreateReviewSessionOptions): 
   const customTools = [
     ...createRepoFileOps(options.provider),
     ...createPrTools(workspace),
+    ...createUtilTools(),
     createDelegateReviewTool({ workspace, provider: options.provider, model: options.model, systemPrompt: options.subAgentSystemPrompt, onChildEvent: options.onChildEvent }),
     createSubmitReviewTool(options.sink, { provider: options.provider, workspace }),
   ].map((tool) => TIMEOUT_EXEMPT_TOOLS.has(tool.name) ? tool : withTimeout(tool, TOOL_CALL_TIMEOUT_MS));
