@@ -54,7 +54,7 @@
     "isomorphic-git": "^1.38.1",
     "marked": "^15.0.12",
     "marked-terminal": "^7.3.0",
-    "mathjs": "^14.0.0",
+    "mathjs": "^15.2.0",
     "oauth-1.0a": "^2.2.6",
     "parse-diff": "^0.11.1",
     "undici": "^8.3.0"
