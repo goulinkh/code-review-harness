@@ -65,6 +65,6 @@
     "@code-review-harness/launchpad-sink": "workspace:*",
     "@code-review-harness/stdout-sink": "workspace:*",
     "@types/marked-terminal": "^6.1.1",
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.28.1"
   }
 }
