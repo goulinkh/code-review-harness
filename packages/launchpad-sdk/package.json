@@ -19,7 +19,7 @@
   "dependencies": {
     "better-result": "^2.9.2",
     "oauth-1.0a": "^2.2.6",
-    "undici": "^8.3.0"
+    "undici": "^8.9.0"
   },
   "devDependencies": {
     "@types/oauth": "^0.9.6"
