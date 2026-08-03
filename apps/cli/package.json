@@ -57,7 +57,7 @@
     "mathjs": "^14.0.0",
     "oauth-1.0a": "^2.2.6",
     "parse-diff": "^0.11.1",
-    "undici": "^8.3.0"
+    "undici": "^8.9.0"
   },
   "devDependencies": {
     "@code-review-harness/core": "workspace:*",
